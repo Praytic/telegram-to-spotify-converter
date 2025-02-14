@@ -1,4 +1,4 @@
-# telegram-to-spotify-converter
+# telegram-to-spotify-playlist-converter
 
 ## How run locally
 
