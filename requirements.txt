@@ -4,3 +4,4 @@ termcolor
 tele
 spotipy
 python-dotenv
+flask
