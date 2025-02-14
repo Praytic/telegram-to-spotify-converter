@@ -1,6 +1,6 @@
 # telegram-to-spotify-converter
 
-## How to setup
+## How run locally
 
 1. Install python libs
    ```
