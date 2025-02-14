@@ -1,0 +1,6 @@
+telethon
+colorama
+termcolor
+tele
+spotipy
+python-dotenv

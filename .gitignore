@@ -3,3 +3,4 @@
 *.session
 *.cache*
 __pycache__/
+.idea

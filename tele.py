@@ -8,11 +8,11 @@ from termcolor import colored, cprint
 init()
 
 args = sys.argv[1:]
-api_id = 0
-api_hash = "0"
-name = 'Spotigram'
-chat = args[0]
-playlist_name = args[1]
+api_id = args[0]
+api_hash = args[1]
+name = 'Praytic Telegram Client'
+chat = args[2]
+playlist_name = args[3]
 songs = []
 performer = 'artist'
 title = 'track'
@@ -27,6 +27,7 @@ def format_for_spotify(query_str):
     return query_str.replace("&", ",").replace("feat.", ",").replace("feat", ",").replace("...", "").replace("..", "").replace("•", "").replace("/","").replace(".", " .")
 
 def save_file(songs, filename):
+    print("Saving songs to file")
     with open(filename + ".json", "w", encoding="utf-8") as file:
         json.dump(songs, file, ensure_ascii=False, separators=(",\n", ": "))
 
@@ -45,10 +46,11 @@ with TelegramClient(name, api_id, api_hash) as client:
                         search_str = format_for_spotify(search_str)
                         if search_str == " " or not search_str:
                             search_str = message.message.split("\n")[-1]
+                        print("Appending search_str [{0}] to songs.".format(search_str))
                         songs.append(search_str)
                 except Exception as ex:
                     broken_str = performers + ' ' + title
                     broken_songs.append(broken_str)
                     print_red_onwhite("Failed to get song %s from telegram" %broken_str)
-                    
+
 save_file(broken_songs, "tele_fail")
