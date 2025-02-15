@@ -1,23 +1,12 @@
-import tele
+# spotify.py
 import spotipy
-import spotipy.util as util
 from spotipy.oauth2 import SpotifyOAuth
 from spotipy.oauth2 import SpotifyClientCredentials
-from dotenv import load_dotenv
-import os
+import json
 
-load_dotenv()
 
-scope = 'playlist-modify-public'
-username = os.getenv('USERNAME')
-
-auth_manager=SpotifyOAuth(scope=scope)
-spotify = spotipy.Spotify(auth_manager=auth_manager)
-
-unfound = []
-
-def user_playlist_get_or_create(username, name):
-    print("Getting user [{0}] playlist with name [{1}].".format(username, name))
+def user_playlist_get_or_create(spotify: spotipy.Spotify, username, name):
+    print(f"Getting user [{username}] playlist with name [{name}].")
     all_playlists = spotify.user_playlists(username)
     for playlist in all_playlists['items']:
         if playlist['name'] == name:
@@ -25,28 +14,43 @@ def user_playlist_get_or_create(username, name):
     return spotify.user_playlist_create(username, name)['id']
 
 
-if auth_manager:
-    playlist_id = user_playlist_get_or_create(username, tele.playlist_name)
+def process_songs(spotify: spotipy.Spotify, username, playlist_name, songs):
+    """
+    Creates (or retrieves) the playlist, searches for the songs, adds them in pages of 100.
+    """
+    playlist_id = user_playlist_get_or_create(spotify, username, playlist_name)
+
+    unfound = []
     tracks = []
-    for song in tele.songs:
-        print("Searching for song [{0}].".format(song))
+
+    for song in songs:
+        print(f"Searching for song [{song}].")
         results = spotify.search(q=song, limit=3)['tracks']['items']
         if len(results) > 0:
             first_result = results[0]
-            uri, artist, song_name = first_result['uri'], first_result['album']['artists'][0]['name'], first_result['name']
-            tracks.append(first_result['uri'])
-            print("Successfully got song [{0}].".format(song))
+            uri = first_result['uri']
+            tracks.append(uri)
+            print(f"Successfully found song [{song}].")
         else:
             unfound.append(song)
-            print("Failed to get song [{0}].".format(song))
-            tele.print_red("Failed to get song %s from spotify " %song)
+            print(f"Failed to find song [{song}] on Spotify.")
 
+    # Paginate addition (Spotify imposes limit of 100 items at a time)
     paginate = 0
     while paginate < len(tracks):
         next_page = paginate + 100
         paged_tracks = tracks[paginate:next_page]
         paginate = next_page
-        print("Add [{0}] songs to playlist [{1}].".format(len(paged_tracks), playlist_id))
+        print(f"Add [{len(paged_tracks)}] songs to playlist [{playlist_id}].")
         spotify.playlist_add_items(playlist_id, paged_tracks)
 
-tele.save_file(unfound, "failed_spotify")
+    # Optionally write out `unfound`
+    if unfound:
+        with open("failed_spotify.json", "w", encoding="utf-8") as f:
+            json.dump(unfound, f, ensure_ascii=False, separators=(",\n", ": "))
+
+    return {
+        "playlist_id": playlist_id,
+        "total_requested": len(songs),
+        "not_found": unfound
+    }

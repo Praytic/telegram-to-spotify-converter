@@ -6,3 +6,5 @@ spotipy
 python-dotenv
 flask
 flask-cors
+requests>=2.32.0
+pyopenssl

@@ -1,11 +1,4 @@
-/*******************************************
- * CONFIG: Where your Flask app is running
- ******************************************/
-const SERVER_URL = "http://localhost:8000";
-
-/*******************************************
- * Simple State Management
- ******************************************/
+const SERVER_URL = "https://localhost:8000";
 let currentStep = 1;
 
 // Track login statuses
@@ -100,62 +93,103 @@ async function renderStep1() {
       </div>
     </div>
   `;
-    updateModalContent(html, 1);
 
-    if (telegramLoggedIn) {
-        document.getElementById("telegram-status").classList.remove("fail");
-        document.getElementById("telegram-status").classList.add("success");
-        document.getElementById("telegram-status").textContent = "✓";
-    }
-    if (spotifyLoggedIn) {
-        document.getElementById("spotify-status").classList.remove("fail");
-        document.getElementById("spotify-status").classList.add("success");
-        document.getElementById("spotify-status").textContent = "✓";
-    }
+    await checkTelegramStatus();
+    await checkSpotifyStatus();
+
+    updateModalContent(html, 1);
 }
 
 async function loginTelegram() {
-    try {
-        const res = await fetch(`${SERVER_URL}/telegram_login`);
-        const data = await res.json();
-        telegramLoggedIn = data.success;
-
-        // Update icon
-        if (telegramLoggedIn) {
-            document.getElementById("telegram-status").classList.remove("fail");
-            document.getElementById("telegram-status").classList.add("success");
-            document.getElementById("telegram-status").textContent = "✓";
-        } else {
-            document.getElementById("telegram-status").classList.remove("success");
-            document.getElementById("telegram-status").classList.add("fail");
-            document.getElementById("telegram-status").textContent = "✗";
-        }
-        updateEnterButtonState();
-    } catch (err) {
-        console.error("Telegram login failed:", err);
+  const phone = prompt("Enter your Telegram phone number (with country code):");
+  if (!phone) {
+    alert("No phone number entered.");
+    return;
+  }
+  try {
+    const res = await fetch(`${SERVER_URL}/telegram/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ phone })
+    });
+    const data = await res.json();
+    if (res.ok && data.success) {
+      await checkTelegramStatus();
+    } else {
+      alert("Telegram login failed: " + (data.error || "Unknown error"));
     }
+  } catch (error) {
+    alert("Telegram login request failed.");
+  }
 }
 
-async function loginSpotify() {
-    try {
-        const res = await fetch(`${SERVER_URL}/spotify_login`);
-        const data = await res.json();
-        spotifyLoggedIn = data.success;
-
-        // Update icon
-        if (spotifyLoggedIn) {
-            document.getElementById("spotify-status").classList.remove("fail");
-            document.getElementById("spotify-status").classList.add("success");
-            document.getElementById("spotify-status").textContent = "✓";
-        } else {
-            document.getElementById("spotify-status").classList.remove("success");
-            document.getElementById("spotify-status").classList.add("fail");
-            document.getElementById("spotify-status").textContent = "✗";
-        }
-        updateEnterButtonState();
-    } catch (err) {
-        console.error("Spotify login failed:", err);
+async function checkTelegramStatus() {
+  try {
+    const res = await fetch(`${SERVER_URL}/telegram/logged_in`);
+    const data = await res.json();
+    telegramLoggedIn = data.logged_in;
+    if (telegramLoggedIn) {
+      const el = document.getElementById("telegram-status");
+      el.textContent = "✓";
+      el.classList.remove("fail");
+      el.classList.add("success");
     }
+    updateEnterButtonState();
+  } catch {}
+}
+
+function loginSpotify() {
+  window.location.href = `${SERVER_URL}/spotify/login`;
+}
+
+async function checkSpotifyStatus() {
+  try {
+    const res = await fetch(`${SERVER_URL}/spotify/me`);
+    if (res.ok) {
+      const user = await res.json();
+      spotifyLoggedIn = !!user.id;
+      const el = document.getElementById("spotify-status");
+      el.textContent = "✓";
+      el.classList.remove("fail");
+      el.classList.add("success");
+    }
+  } catch {}
+  updateEnterButtonState();
+}
+
+async function fetchSongsFromTelegramChannel(chatId) {
+  try {
+    const res = await fetch(`${SERVER_URL}/telegram/songs`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat: chatId })
+    });
+    if (!res.ok) {
+      const errData = await res.json();
+      alert("Error: " + (errData.error || "unknown"));
+      return [];
+    }
+    const data = await res.json();
+    return data.songs || [];
+  } catch {
+    return [];
+  }
+}
+
+async function addSongsToSpotify(playlistName, songs) {
+  try {
+    const res = await fetch(`${SERVER_URL}/spotify/add_songs`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ playlistName, songs })
+    });
+    const data = await res.json();
+    if (res.ok) {
+      alert(`Songs added. Missing: ${data.not_found.length}`);
+    } else {
+      alert("Error adding songs: " + (data.error || "Unknown"));
+    }
+  } catch {}
 }
 
 /*******************************************
