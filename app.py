@@ -12,8 +12,16 @@ Provides endpoints for:
 
 import random
 from flask import Flask, request, jsonify
+from flask_cors import CORS
+import re
 
 app = Flask(__name__)
+
+CORS(app, resources={
+    r"/*": {
+        "origins": [re.compile(r"^http://localhost:\d+$"), "https://your-production-site.com"]
+    }
+})
 
 # In-memory mock data (global variables)
 CHANNELS = ["Channel A", "Channel B", "Channel C"]
@@ -126,4 +134,4 @@ def upload_songs():
 
 if __name__ == '__main__':
     # Run on localhost:5000 by default
-    app.run(debug=True)
+    app.run(port=8000, debug=True)

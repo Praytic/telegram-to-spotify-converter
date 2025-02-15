@@ -1,4 +1,9 @@
 /*******************************************
+ * CONFIG: Where your Flask app is running
+ ******************************************/
+const SERVER_URL = "http://localhost:8000";
+
+/*******************************************
  * Simple State Management
  ******************************************/
 let currentStep = 1;
@@ -7,16 +12,13 @@ let currentStep = 1;
 let telegramLoggedIn = false;
 let spotifyLoggedIn = false;
 
-// Data from the backend (placeholders)
-let availableChannels = ["Channel A", "Channel B", "Channel C"];
+// Data from the backend
+let availableChannels = [];
 let selectedChannel = null;
-let channelAudioFiles = [
-    "Song 1", "Song 2", "Song 3",
-    "Song 4", "Song 5", "Song 6"
-];
+let channelAudioFiles = [];
 let checkedAudioFiles = [];
 
-let existingPlaylists = ["My Favorites", "Road Trip", "Gym Tunes"];
+let existingPlaylists = [];
 let selectedPlaylist = null;
 let isNewPlaylist = false;
 let newPlaylistName = "";
@@ -30,27 +32,20 @@ const breadcrumb = document.getElementById("breadcrumb");
 const enterButton = document.getElementById("enter-button");
 
 /*******************************************
- * Utility: Soft Transition
+ * Utility
  ******************************************/
-function updateModalContent(html, nextStep) {
-    // Fade out
+
+// Soft transition that matches CSS transition duration (0.4s)
+function updateModalContent(html, nextStep, callback) {
     modal.classList.add("fade-out");
-
     setTimeout(() => {
-        // Update step
         if (typeof nextStep === "number") currentStep = nextStep;
-        // Update breadcrumb
         breadcrumb.textContent = `Step ${currentStep} of 4`;
-
-        // Update content
         modalContent.innerHTML = html;
-
-        // Fade in
         modal.classList.remove("fade-out");
-
-        // Re-check if the ENTER should be enabled or disabled
         updateEnterButtonState();
-    }, 400); // matches our CSS transition duration (0.4s)
+        if (callback) callback()
+    }, 400);
 }
 
 function updateEnterButtonState() {
@@ -65,7 +60,7 @@ function updateEnterButtonState() {
             }
             break;
         case 2:
-            // Must have a channel selected and at least one audio file checked
+            // Must have a channel selected + at least one checked song
             if (selectedChannel && checkedAudioFiles.length > 0) {
                 enterButton.disabled = false;
             }
@@ -80,7 +75,7 @@ function updateEnterButtonState() {
             }
             break;
         case 4:
-            // Final step: always enable for the final upload
+            // Final step: always enable so user can finalize the upload
             enterButton.disabled = false;
             break;
         default:
@@ -91,88 +86,154 @@ function updateEnterButtonState() {
 /*******************************************
  * Step 1: Telegram & Spotify Login
  ******************************************/
-function renderStep1() {
-    let telegramStatus = telegramLoggedIn
-        ? `<span class="status-icon success">&#10003;</span>`  // check mark
-        : `<span class="status-icon fail">&#10007;</span>`;    // red X
-
-    let spotifyStatus = spotifyLoggedIn
-        ? `<span class="status-icon success">&#10003;</span>`
-        : `<span class="status-icon fail">&#10007;</span>`;
-
+async function renderStep1() {
     const html = `
     <div class="modal-header">Login Required</div>
     <div class="login-split">
       <div class="login-half">
         <button onclick="loginTelegram()">Login with Telegram</button>
-        ${telegramStatus}
+        <span id="telegram-status" class="status-icon fail">&#10007;</span>
       </div>
       <div class="login-half">
         <button onclick="loginSpotify()">Login with Spotify</button>
-        ${spotifyStatus}
+        <span id="spotify-status" class="status-icon fail">&#10007;</span>
       </div>
     </div>
   `;
     updateModalContent(html, 1);
+
+    if (telegramLoggedIn) {
+        document.getElementById("telegram-status").classList.remove("fail");
+        document.getElementById("telegram-status").classList.add("success");
+        document.getElementById("telegram-status").textContent = "✓";
+    }
+    if (spotifyLoggedIn) {
+        document.getElementById("spotify-status").classList.remove("fail");
+        document.getElementById("spotify-status").classList.add("success");
+        document.getElementById("spotify-status").textContent = "✓";
+    }
 }
 
-// Simulate Telegram login flow
-function loginTelegram() {
-    // In a real implementation, you'd redirect to your Telegram OAuth flow
-    setTimeout(() => {
-        // Simulate success 80% of the time
-        telegramLoggedIn = Math.random() < 0.8;
-        renderStep1();
-    }, 500);
+async function loginTelegram() {
+    try {
+        const res = await fetch(`${SERVER_URL}/telegram_login`);
+        const data = await res.json();
+        telegramLoggedIn = data.success;
+
+        // Update icon
+        if (telegramLoggedIn) {
+            document.getElementById("telegram-status").classList.remove("fail");
+            document.getElementById("telegram-status").classList.add("success");
+            document.getElementById("telegram-status").textContent = "✓";
+        } else {
+            document.getElementById("telegram-status").classList.remove("success");
+            document.getElementById("telegram-status").classList.add("fail");
+            document.getElementById("telegram-status").textContent = "✗";
+        }
+        updateEnterButtonState();
+    } catch (err) {
+        console.error("Telegram login failed:", err);
+    }
 }
 
-// Simulate Spotify login flow
-function loginSpotify() {
-    // In a real implementation, you'd redirect to your Spotify OAuth flow
-    setTimeout(() => {
-        // Simulate success 80% of the time
-        spotifyLoggedIn = Math.random() < 0.8;
-        renderStep1();
-    }, 500);
+async function loginSpotify() {
+    try {
+        const res = await fetch(`${SERVER_URL}/spotify_login`);
+        const data = await res.json();
+        spotifyLoggedIn = data.success;
+
+        // Update icon
+        if (spotifyLoggedIn) {
+            document.getElementById("spotify-status").classList.remove("fail");
+            document.getElementById("spotify-status").classList.add("success");
+            document.getElementById("spotify-status").textContent = "✓";
+        } else {
+            document.getElementById("spotify-status").classList.remove("success");
+            document.getElementById("spotify-status").classList.add("fail");
+            document.getElementById("spotify-status").textContent = "✗";
+        }
+        updateEnterButtonState();
+    } catch (err) {
+        console.error("Spotify login failed:", err);
+    }
 }
 
 /*******************************************
  * Step 2: Choose Telegram Channel, then show list of Audio
  ******************************************/
-function renderStep2() {
+async function renderStep2() {
+    // Get channels from backend
+    try {
+        const res = await fetch(`${SERVER_URL}/channels`);
+        const data = await res.json();
+        availableChannels = data.channels || [];
+    } catch (err) {
+        console.error("Error fetching channels:", err);
+        availableChannels = [];
+    }
+
+    // We'll populate the audio list once the user picks a channel
+    channelAudioFiles = [];
+    selectedChannel = null;
+    checkedAudioFiles = [];
+
     let channelsHTML = availableChannels.map(ch => {
         return `<option value="${ch}">${ch}</option>`;
     }).join("");
 
-    // Build checkboxes for audio files
-    let audioListHTML = channelAudioFiles.map(file => {
-        // If previously checked, keep it checked
-        const checked = checkedAudioFiles.includes(file) ? "checked" : "";
-        return `
-      <label>
-        <input type="checkbox" value="${file}" ${checked} onchange="onAudioCheckboxChange(this)">
-        ${file}
-      </label>
-    `;
-    }).join("");
-
     const html = `
     <div class="modal-header">Choose Telegram Channel</div>
-    <select onchange="onChannelChange(this.value)">
+    <select id="channel-select">
       <option value="">-- Select Channel --</option>
       ${channelsHTML}
     </select>
 
-    <div class="scrollable-list">
-      <!-- Audio file checkboxes -->
-      ${audioListHTML}
+    <div class="scrollable-list" id="audio-list">
+      <!-- Audio file checkboxes will appear after selecting channel -->
     </div>
   `;
-    updateModalContent(html, 2);
+    updateModalContent(html, 2, () => {
+        const channelSelect = document.getElementById("channel-select");
+        channelSelect.addEventListener("change", onChannelChange);
+    });
 }
 
-function onChannelChange(value) {
-    selectedChannel = value;
+async function onChannelChange(event) {
+    selectedChannel = event.target.value;
+    channelAudioFiles = [];
+    checkedAudioFiles = [];
+
+    // Fetch songs for the selected channel
+    if (selectedChannel) {
+        try {
+            let res = await fetch(`${SERVER_URL}/songs`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ channel: selectedChannel })
+            });
+            let data = await res.json();
+            channelAudioFiles = data.songs || [];
+        } catch (err) {
+            console.error("Error fetching songs:", err);
+            channelAudioFiles = [];
+        }
+
+        // Update the audio list UI
+        const audioList = document.getElementById("audio-list");
+        audioList.innerHTML = channelAudioFiles.map(file => {
+            return `
+        <label>
+          <input type="checkbox" value="${file}" onchange="onAudioCheckboxChange(this)">
+          ${file}
+        </label>
+      `;
+        }).join("");
+    } else {
+        // If no channel selected, clear audio list
+        const audioList = document.getElementById("audio-list");
+        audioList.innerHTML = "";
+    }
+
     updateEnterButtonState();
 }
 
@@ -189,56 +250,67 @@ function onAudioCheckboxChange(checkbox) {
 /*******************************************
  * Step 3: Choose or Create Spotify Playlist
  ******************************************/
-function renderStep3() {
+async function renderStep3() {
+    // Fetch existing playlists
+    try {
+        let res = await fetch(`${SERVER_URL}/playlists`);
+        let data = await res.json();
+        existingPlaylists = data.playlists || [];
+    } catch (err) {
+        console.error("Error fetching playlists:", err);
+        existingPlaylists = [];
+    }
+
+    selectedPlaylist = null;
+    isNewPlaylist = false;
+    newPlaylistName = "";
+
     let existingListHTML = existingPlaylists.map(pl => {
-        const isSelected = (!isNewPlaylist && selectedPlaylist === pl) ? "checked" : "";
         return `
       <label>
-        <input type="radio" name="playlistChoice" value="${pl}" ${isSelected}
+        <input type="radio" name="playlistChoice" value="${pl}"
                onchange="onPlaylistRadioChange(false, '${pl}')">
         ${pl}
       </label>
     `;
     }).join("");
 
-    // If user previously typed a new name
-    const newPlaylistRadioChecked = isNewPlaylist ? "checked" : "";
-
     const html = `
     <div class="modal-header">Select or Create Spotify Playlist</div>
-    
     <div class="playlist-options">
       <div>
         <strong>Existing Playlists:</strong>
         ${existingListHTML}
       </div>
-      
       <div style="margin-top: 10px;">
         <label>
-          <input type="radio" name="playlistChoice" ${newPlaylistRadioChecked}
+          <input type="radio" name="playlistChoice"
                  onchange="onPlaylistRadioChange(true, '')">
           Create New Playlist
         </label>
         <br>
-        <input type="text" placeholder="New Playlist Name" 
-               style="width:100%;box-sizing:border-box;"
-               value="${newPlaylistName}"
-               oninput="onNewPlaylistNameChange(this.value)"
-               ${isNewPlaylist ? "" : "disabled"}>
+        <input type="text" id="new-playlist-name" placeholder="New Playlist Name"
+               style="width:100%;box-sizing:border-box;" disabled>
       </div>
     </div>
   `;
-    updateModalContent(html, 3);
+    updateModalContent(html, 3, () => {
+        const newPlaylistInput = document.getElementById("new-playlist-name");
+        newPlaylistInput.addEventListener("input", (e) => {
+            onNewPlaylistNameChange(e.target.value);
+        });
+    });
 }
 
 function onPlaylistRadioChange(newVal, plName) {
     isNewPlaylist = newVal;
     if (newVal) {
         selectedPlaylist = null;
-        document.querySelector("input[type='text']").disabled = false;
+        document.getElementById("new-playlist-name").disabled = false;
     } else {
         selectedPlaylist = plName;
-        document.querySelector("input[type='text']").disabled = true;
+        document.getElementById("new-playlist-name").value = "";
+        document.getElementById("new-playlist-name").disabled = true;
     }
     updateEnterButtonState();
 }
@@ -251,69 +323,75 @@ function onNewPlaylistNameChange(value) {
 /*******************************************
  * Step 4: Review & Final Upload
  ******************************************/
-function renderStep4() {
-    const playlistNameToShow = isNewPlaylist
-        ? newPlaylistName
-        : (selectedPlaylist || "N/A");
+async function renderStep4() {
+    const playlistNameToShow = isNewPlaylist ? newPlaylistName : (selectedPlaylist || "N/A");
     const reviewHTML = `
     <div class="modal-header">Review Your Choices</div>
     <p><strong>Telegram Channel:</strong> ${selectedChannel}</p>
     <p><strong>Number of Songs:</strong> ${checkedAudioFiles.length}</p>
     <p><strong>Playlist Name:</strong> ${playlistNameToShow}</p>
     <div class="progress" id="progress-area">
-      <!-- Progress and final results will appear here -->
+      <!-- This will show final results after upload -->
       <p>Ready to upload. Press ENTER to proceed.</p>
     </div>
   `;
     updateModalContent(reviewHTML, 4);
 }
 
-function finalizeUpload() {
+async function finalizeUpload() {
     const progressArea = document.getElementById("progress-area");
     if (!progressArea) return;
 
-    // Simulate a "long" connection
-    let total = checkedAudioFiles.length;
-    let successCount = 0;
-    let failCount = 0;
-    let index = 0;
-    let failedSongs = [];
-
-    progressArea.innerHTML = `<p>Uploading ${total} songs...</p>`;
-
-    let interval = setInterval(() => {
-        if (index >= total) {
-            clearInterval(interval);
-            // Final results
-            progressArea.innerHTML = `
-        <p>Upload complete!</p>
-        <p>Success: ${successCount}</p>
-        <p>Failed: ${failCount}</p>
-        ${
-                failCount > 0
-                    ? "<p>Failed Songs:<br>" + failedSongs.map(s => "- " + s).join("<br>") + "</p>"
-                    : ""
+    // If user decided to create a new playlist, create it first
+    let finalPlaylistName = selectedPlaylist;
+    if (isNewPlaylist && newPlaylistName.trim().length > 0) {
+        try {
+            let res = await fetch(`${SERVER_URL}/create_playlist`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ name: newPlaylistName })
+            });
+            let data = await res.json();
+            if (data.success) {
+                finalPlaylistName = data.playlistName;
+            } else {
+                // Possibly the playlist already exists or error
+                progressArea.innerHTML = `<p>Error creating playlist: ${data.error || "Unknown error"}</p>`;
+                return;
             }
-      `;
+        } catch (err) {
+            progressArea.innerHTML = `<p>Error creating playlist: ${err}</p>`;
             return;
         }
+    }
 
-        const currentSong = checkedAudioFiles[index];
-        // Simulate success/fail
-        if (Math.random() < 0.8) {
-            successCount++;
-        } else {
-            failCount++;
-            failedSongs.push(currentSong);
-        }
-        index++;
-
-        progressArea.innerHTML = `
-      <p>Uploading... ${index}/${total}</p>
-      <p>Success so far: ${successCount}</p>
-      <p>Failed so far: ${failCount}</p>
+    // Now upload songs
+    progressArea.innerHTML = "<p>Uploading songs, please wait...</p>";
+    try {
+        let res = await fetch(`${SERVER_URL}/upload_songs`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                channel: selectedChannel,
+                songs: checkedAudioFiles,
+                playlist: finalPlaylistName
+            })
+        });
+        let data = await res.json();
+        const { successCount, failCount, failedSongs } = data;
+        let resultHTML = `
+      <p>Upload complete!</p>
+      <p>Success: ${successCount}</p>
+      <p>Failed: ${failCount}</p>
     `;
-    }, 500);
+        if (failCount > 0 && Array.isArray(failedSongs)) {
+            resultHTML += `<p>Failed Songs:<br>${failedSongs.map(s => "- " + s).join("<br>")}</p>`;
+        }
+        progressArea.innerHTML = resultHTML;
+    } catch (err) {
+        console.error("Error uploading songs:", err);
+        progressArea.innerHTML = `<p>Error uploading songs: ${err}</p>`;
+    }
 }
 
 /*******************************************
@@ -322,15 +400,19 @@ function finalizeUpload() {
 function goNextStep() {
     switch (currentStep) {
         case 1:
+            // Step 1 -> Step 2
             renderStep2();
             break;
         case 2:
+            // Step 2 -> Step 3
             renderStep3();
             break;
         case 3:
+            // Step 3 -> Step 4
             renderStep4();
             break;
         case 4:
+            // Final: upload
             finalizeUpload();
             break;
         default:
@@ -344,7 +426,6 @@ enterButton.addEventListener("click", () => {
     }
 });
 
-// Also trigger "ENTER" on keyboard press
 document.addEventListener("keydown", (e) => {
     if (e.key === "Enter" && !enterButton.disabled) {
         goNextStep();
@@ -355,6 +436,5 @@ document.addEventListener("keydown", (e) => {
  * On Page Load: Always start at Step 1
  ******************************************/
 window.onload = function() {
-    // Always load Step 1 initially
     renderStep1();
 };
