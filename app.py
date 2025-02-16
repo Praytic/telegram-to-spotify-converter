@@ -11,6 +11,7 @@ import urllib.parse
 from dotenv import load_dotenv
 from flask import Flask, request, jsonify, session, redirect, url_for, send_from_directory
 from flask_cors import CORS
+from flask_session import Session
 from datetime import timedelta
 
 # For Spotify
@@ -29,13 +30,14 @@ load_dotenv()
 
 # Flask app setup
 app = Flask(__name__,  static_folder='static', static_url_path='')
-app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY')
-app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)
-app.config["SESSION_PERMANENT"] = True
-app.config["SESSION_COOKIE_SAMESITE"] = "None"
-app.config["SESSION_COOKIE_SECURE"] = True  # Set True in production with HTTPS
+SECRET_KEY = os.getenv('FLASK_SECRET_KEY')
+PERMANENT_SESSION_LIFETIME = timedelta(days=1)
+SESSION_TYPE = "redis"
+SESSION_COOKIE_SAMESITE = "None"
+SESSION_COOKIE_SECURE = True  # Set True in production with HTTPS
+app.config.from_object(__name__)
 
-
+Session(app)
 CORS(app, resources={
     r"/*": {
         "origins": [re.compile(r"^https://localhost:\d+$"), "https://your-production-site.com"]

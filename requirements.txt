@@ -6,5 +6,7 @@ spotipy
 python-dotenv
 flask
 flask-cors
+flask-session
 requests>=2.32.0
 pyopenssl
+cachelib
