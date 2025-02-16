@@ -107,6 +107,7 @@ def telegram_check_authorization():
     except Exception as e:
         return str(e), 400
 
+
 @app.route('/telegram/login_example', methods=['GET'])
 def telegram_login_example():
     tg_user_json = request.cookies.get('tg_user')
@@ -118,46 +119,6 @@ def telegram_login_example():
 <script async src="https://telegram.org/js/telegram-widget.js?22" data-telegram-login="${TELEGRAM_BOT_NAME}" data-size="large" data-auth-url="https://5e18-2601-647-4d82-9ec0-d9eb-b4df-6af4-6611.ngrok-free.app/telegram/check_authorization"></script>"""
         return html
 
-@app.route('/telegram/login', methods=['POST'])
-def telegram_login():
-    """
-    This route might accept a phone number (and possibly a code, password)
-    for the sake of demonstration. Real usage might require multiple steps.
-    """
-    global telethon_client
-    data = request.get_json(force=True)
-    phone_number = data.get('phone')
-
-    if not phone_number:
-        return jsonify({"error": "Phone number required"}), 400
-
-    # Initialize client. If 'web-telethon-session.session' exists, it reuses it
-    telethon_client = TelegramClient(TELETHON_SESSION_NAME, TELEGRAM_API_ID, TELEGRAM_API_HASH)
-
-    try:
-        telethon_client.start(phone=phone_number)
-        # If 2FA is enabled or code needed, Telethon typically prompts in console, which is not
-        # truly "web friendly." You might handle it by hooking Telethon callbacks or returning
-        # partial states to the front-end. This is more advanced.
-        # For a simplified approach, if you already have a saved session on disk, this 'start' might succeed immediately.
-    except SessionPasswordNeededError:
-        # In real usage, you'd handle requesting the user's 2FA password
-        return jsonify({"error": "2FA password needed, but not implemented here"}), 401
-    except Exception as ex:
-        return jsonify({"error": str(ex)}), 500
-
-    # If we got here, presumably we are "logged in"
-    return jsonify({"success": True})
-
-@app.route('/telegram/logged_in', methods=['GET'])
-def telegram_logged_in():
-    """
-    Simple check if we *think* the Telegram client is alive and authenticated.
-    """
-    global telethon_client
-    if telethon_client and telethon_client.is_user_authorized():
-        return jsonify({"logged_in": True})
-    return jsonify({"logged_in": False})
 
 @app.route('/telegram/songs', methods=['POST'])
 def telegram_songs():
@@ -178,11 +139,6 @@ def telegram_songs():
     songs = tele.get_songs_from_telegram(telethon_client, chat)
     return jsonify({"songs": songs})
 
-@app.route('/telegram/callback', methods=['GET'])
-def telegram_callback():
-    r = request
-    next_url = session.pop("next_url")
-    return redirect(next_url)
 
 #################################################
 # SPOTIFY AUTH
@@ -191,7 +147,6 @@ def telegram_callback():
 @app.route('/spotify/login', methods=['GET'])
 def spotify_login():
     session.permanent = True
-    session["next_url"] = request.headers.get("Referer", "/")
 
     code_verifier = "".join(secrets.choice(string.ascii_letters + string.digits) for _ in range(64))
     hashed = hashlib.sha256(code_verifier.encode("utf-8")).digest()
@@ -229,9 +184,8 @@ def spotify_callback():
     token_info = r.json()
 
     session["access_token"] = token_info.get("access_token")
-    next_url = session.pop("next_url")
 
-    return redirect(next_url)
+    return redirect("/")
 
 @app.route('/spotify/me', methods=['GET'])
 def spotify_me():
@@ -291,10 +245,3 @@ def get_spotify_client_from_session():
     # Return a spotipy client
     sp = spotipy.Spotify(auth=token_info['access_token'])
     return sp
-
-
-#################################################
-# MAIN
-#################################################
-if __name__ == '__main__':
-    app.run(port=8000, debug=True)
