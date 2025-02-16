@@ -84,6 +84,7 @@ async function renderStep1() {
     <div class="modal-header">Login Required</div>
     <div class="login-split">
       <div class="login-half">
+        <div id="telegram-login-widget"></div>
         <button onclick="loginTelegram()">Login with Telegram</button>
         <span id="telegram-status" class="status-icon fail">&#10007;</span>
       </div>
@@ -97,12 +98,12 @@ async function renderStep1() {
         const container = document.getElementById("telegram-login-widget");
         if (container) {
             const script = document.createElement("script");
-            script.src = "https://telegram.org/js/telegram-widget.js?2";
+            script.src = "https://telegram.org/js/telegram-widget.js?22";
             script.async = true;
             // Replace 'YourBotUsername' with your actual bot username or a global variable
-            script.setAttribute("data-telegram-login", "YourBotUsername");
+            script.setAttribute("data-telegram-login", "PrayticSpotifyBot");
             script.setAttribute("data-size", "large");
-            script.setAttribute("data-auth-url", `${SERVER_URL}/telegram/check_authorization`);
+            script.setAttribute("data-auth-url", `https://5e18-2601-647-4d82-9ec0-d9eb-b4df-6af4-6611.ngrok-free.app/telegram/check_authorization`);
             container.appendChild(script);
         }
 

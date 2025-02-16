@@ -1,4 +1,5 @@
 # app.py
+import asyncio
 import base64
 import hashlib
 import os
@@ -20,7 +21,7 @@ import spotipy
 from spotipy.oauth2 import SpotifyOAuth
 
 # For Telethon
-from telethon import TelegramClient
+from telethon.sync import TelegramClient
 from telethon.errors import SessionPasswordNeededError
 
 # Our separate logic
@@ -49,6 +50,8 @@ CORS(app, resources={
 TELEGRAM_API_ID = os.getenv('TELEGRAM_API_ID')
 TELEGRAM_API_ID = int(TELEGRAM_API_ID) if TELEGRAM_API_ID is not None else None
 TELEGRAM_API_HASH = os.getenv('TELEGRAM_API_HASH')
+TELEGRAM_BOT_TOKEN = os.getenv('BOT_TOKEN')
+TELEGRAM_BOT_NAME = os.getenv('BOT_NAME')
 
 SPOTIFY_USERNAME = os.getenv('USERNAME', '')
 SPOTIPY_CLIENT_ID = os.getenv('SPOTIPY_CLIENT_ID')
@@ -64,6 +67,11 @@ telethon_client = None
 scope = 'playlist-modify-public'
 spotify_oauth = SpotifyOAuth(scope=scope)
 
+try:
+    asyncio.get_running_loop()
+except RuntimeError:
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
 
 @app.route('/', methods=['GET'])
 def redirect_to_index():
@@ -85,7 +93,7 @@ def telegram_check_authorization():
         data_check_arr = [f"{k}={v}" for k, v in data.items()]
         data_check_arr.sort()
         data_check_string = "\n".join(data_check_arr)
-        secret_key = hashlib.sha256(TELEGRAM_API_ID.encode("utf-8")).digest()
+        secret_key = hashlib.sha256(TELEGRAM_BOT_TOKEN.encode("utf-8")).digest()
         computed_hash = hmac.new(secret_key, data_check_string.encode("utf-8"), hashlib.sha256).hexdigest()
         if computed_hash != check_hash:
             return "Data is NOT from Telegram", 403
@@ -106,11 +114,8 @@ def telegram_login_example():
         tg_user = json.loads(urllib.parse.unquote(tg_user_json))
         return jsonify(tg_user)
     else:
-        bot_username = os.getenv("BOT_USERNAME", "YourBotUsername")
         html = f"""<h1>Hello, anonymous!</h1>
-<script async src="https://telegram.org/js/telegram-widget.js?2" 
-data-telegram-login="{bot_username}" data-size="large" 
-data-auth-url="{request.url_root}telegram/check_authorization"></script>"""
+<script async src="https://telegram.org/js/telegram-widget.js?22" data-telegram-login="${TELEGRAM_BOT_NAME}" data-size="large" data-auth-url="https://5e18-2601-647-4d82-9ec0-d9eb-b4df-6af4-6611.ngrok-free.app/telegram/check_authorization"></script>"""
         return html
 
 @app.route('/telegram/login', methods=['POST'])
@@ -172,6 +177,12 @@ def telegram_songs():
     # Use tele.py logic
     songs = tele.get_songs_from_telegram(telethon_client, chat)
     return jsonify({"songs": songs})
+
+@app.route('/telegram/callback', methods=['GET'])
+def telegram_callback():
+    r = request
+    next_url = session.pop("next_url")
+    return redirect(next_url)
 
 #################################################
 # SPOTIFY AUTH
