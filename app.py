@@ -113,6 +113,9 @@ def telegram_login_example():
     tg_user_json = request.cookies.get('tg_user')
     if tg_user_json:
         tg_user = json.loads(urllib.parse.unquote(tg_user_json))
+        session["telegram_user_hash"] = tg_user["hash"]
+        session["telegram_user_id"] = tg_user["id"]
+        session.modified = True
         return jsonify(tg_user)
     else:
         html = f"""<h1>Hello, anonymous!</h1>
