@@ -101,14 +101,14 @@ def telegram_check_authorization():
         if (time.time() - auth_date) > 86400:
             return "Data is outdated", 403
         auth_data_json = json.dumps(auth_data)
-        response = redirect('/telegram/login_example')
+        response = redirect('/telegram/me')
         response.set_cookie('tg_user', urllib.parse.quote(auth_data_json))
         return response
     except Exception as e:
         return str(e), 400
 
 
-@app.route('/telegram/login_example', methods=['GET'])
+@app.route('/telegram/me', methods=['GET'])
 def telegram_login_example():
     tg_user_json = request.cookies.get('tg_user')
     if tg_user_json:
