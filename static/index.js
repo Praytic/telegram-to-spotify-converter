@@ -94,6 +94,18 @@ async function renderStep1() {
     </div>
   `;
     updateModalContent(html, 1, async () => {
+        const container = document.getElementById("telegram-login-widget");
+        if (container) {
+            const script = document.createElement("script");
+            script.src = "https://telegram.org/js/telegram-widget.js?2";
+            script.async = true;
+            // Replace 'YourBotUsername' with your actual bot username or a global variable
+            script.setAttribute("data-telegram-login", "YourBotUsername");
+            script.setAttribute("data-size", "large");
+            script.setAttribute("data-auth-url", `${SERVER_URL}/telegram/check_authorization`);
+            container.appendChild(script);
+        }
+
         await checkTelegramStatus();
         await checkSpotifyStatus();
     });

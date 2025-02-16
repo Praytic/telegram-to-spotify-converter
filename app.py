@@ -7,6 +7,7 @@ import secrets
 import string
 import requests
 import urllib.parse
+import json, hmac, time, urllib.parse
 
 from dotenv import load_dotenv
 from flask import Flask, request, jsonify, session, redirect, url_for, send_from_directory
@@ -72,6 +73,45 @@ def redirect_to_index():
 #################################################
 # TELEGRAM AUTH
 #################################################
+
+@app.route('/telegram/check_authorization', methods=['GET'])
+def telegram_check_authorization():
+    auth_data = request.args.to_dict()
+    try:
+        check_hash = auth_data.get('hash')
+        if not check_hash:
+            return "Missing hash", 400
+        data = {k: v for k, v in auth_data.items() if k != 'hash'}
+        data_check_arr = [f"{k}={v}" for k, v in data.items()]
+        data_check_arr.sort()
+        data_check_string = "\n".join(data_check_arr)
+        secret_key = hashlib.sha256(TELEGRAM_API_ID.encode("utf-8")).digest()
+        computed_hash = hmac.new(secret_key, data_check_string.encode("utf-8"), hashlib.sha256).hexdigest()
+        if computed_hash != check_hash:
+            return "Data is NOT from Telegram", 403
+        auth_date = int(data.get('auth_date', 0))
+        if (time.time() - auth_date) > 86400:
+            return "Data is outdated", 403
+        auth_data_json = json.dumps(auth_data)
+        response = redirect('/telegram/login_example')
+        response.set_cookie('tg_user', urllib.parse.quote(auth_data_json))
+        return response
+    except Exception as e:
+        return str(e), 400
+
+@app.route('/telegram/login_example', methods=['GET'])
+def telegram_login_example():
+    tg_user_json = request.cookies.get('tg_user')
+    if tg_user_json:
+        tg_user = json.loads(urllib.parse.unquote(tg_user_json))
+        return jsonify(tg_user)
+    else:
+        bot_username = os.getenv("BOT_USERNAME", "YourBotUsername")
+        html = f"""<h1>Hello, anonymous!</h1>
+<script async src="https://telegram.org/js/telegram-widget.js?2" 
+data-telegram-login="{bot_username}" data-size="large" 
+data-auth-url="{request.url_root}telegram/check_authorization"></script>"""
+        return html
 
 @app.route('/telegram/login', methods=['POST'])
 def telegram_login():
