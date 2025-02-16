@@ -93,11 +93,10 @@ async function renderStep1() {
       </div>
     </div>
   `;
-
-    await checkTelegramStatus();
-    await checkSpotifyStatus();
-
-    updateModalContent(html, 1);
+    updateModalContent(html, 1, async () => {
+        await checkTelegramStatus();
+        await checkSpotifyStatus();
+    });
 }
 
 async function loginTelegram() {
@@ -143,18 +142,28 @@ function loginSpotify() {
 }
 
 async function checkSpotifyStatus() {
-  try {
-    const res = await fetch(`${SERVER_URL}/spotify/me`);
-    if (res.ok) {
-      const user = await res.json();
-      spotifyLoggedIn = !!user.id;
-      const el = document.getElementById("spotify-status");
-      el.textContent = "✓";
-      el.classList.remove("fail");
-      el.classList.add("success");
-    }
-  } catch {}
-  updateEnterButtonState();
+    try {
+        const res = await fetch(`${SERVER_URL}/spotify/me`);
+        if (res.ok) {
+            const user = await res.json();
+            spotifyLoggedIn = !!user.id;
+            const el = document.getElementById("spotify-status");
+            if (spotifyLoggedIn && el) {
+                el.textContent = "✓";
+                el.classList.remove("fail");
+                el.classList.add("success");
+                const spotifyButton = document.querySelector("button[onclick='loginSpotify()']");
+                if (spotifyButton && user.display_name) {
+                    const parent = spotifyButton.parentElement;
+                    parent.removeChild(spotifyButton);
+                    const label = document.createElement("span");
+                    label.textContent = user.display_name;
+                    parent.prepend(label);
+                }
+            }
+        }
+    } catch {}
+    updateEnterButtonState();
 }
 
 async function fetchSongsFromTelegramChannel(chatId) {
