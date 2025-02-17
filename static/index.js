@@ -1,4 +1,4 @@
-const SERVER_URL = "https://5e18-2601-647-4d82-9ec0-d9eb-b4df-6af4-6611.ngrok-free.app";
+const SERVER_URL = "https://my.ngrok-free.app";
 let currentStep = 1;
 
 // Track login statuses
@@ -145,7 +145,7 @@ async function renderStep1() {
             // Replace 'YourBotUsername' with your actual bot username or a global variable
             script.setAttribute("data-telegram-login", "PrayticSpotifyBot");
             script.setAttribute("data-size", "large");
-            script.setAttribute("data-auth-url", `https://5e18-2601-647-4d82-9ec0-d9eb-b4df-6af4-6611.ngrok-free.app/telegram/check_authorization`);
+            script.setAttribute("data-auth-url", `https://my.ngrok-free.app/telegram/check_authorization`);
             script.addEventListener("load", () => {
                 fetch("/telegram/me")
                     .then(response => {

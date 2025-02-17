@@ -128,7 +128,7 @@ def telegram_me():
         return jsonify(tg_user)
     else:
         html = f"""<h1>Hello, anonymous!</h1>
-<script async src="https://telegram.org/js/telegram-widget.js?22" data-telegram-login="${TELEGRAM_BOT_NAME}" data-size="large" data-auth-url="https://5e18-2601-647-4d82-9ec0-d9eb-b4df-6af4-6611.ngrok-free.app/telegram/check_authorization"></script>"""
+<script async src="https://telegram.org/js/telegram-widget.js?22" data-telegram-login="${TELEGRAM_BOT_NAME}" data-size="large" data-auth-url="https://my.ngrok-free.app/telegram/check_authorization"></script>"""
         return html
 
 
