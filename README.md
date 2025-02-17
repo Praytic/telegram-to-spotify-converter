@@ -1,3 +1,6 @@
+> **IMPORTANT:**
+> Repository is archived in favor of https://github.com/Praytic/praytic-spotify-telegram-mini-app.
+
 # telegram-to-spotify-playlist-converter
 
 ## How run locally
