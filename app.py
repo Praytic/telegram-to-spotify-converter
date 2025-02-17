@@ -21,8 +21,8 @@ import spotipy
 from spotipy.oauth2 import SpotifyOAuth
 
 # For Telethon
-from telethon.sync import TelegramClient
-from telethon.errors import SessionPasswordNeededError
+from telethon import TelegramClient, sync, errors, functions
+from telethon.tl import functions as f, types as t
 
 # Our separate logic
 import spotify as spint
@@ -37,6 +37,8 @@ PERMANENT_SESSION_LIFETIME = timedelta(days=1)
 SESSION_TYPE = "redis"
 SESSION_COOKIE_SAMESITE = "None"
 SESSION_COOKIE_SECURE = True  # Set True in production with HTTPS
+TELEGRAM_API_HASH = os.getenv('TELEGRAM_API_HASH')
+TELEGRAM_API_ID = os.getenv('TELEGRAM_API_ID')
 app.config.from_object(__name__)
 
 Session(app)
@@ -87,19 +89,25 @@ def telegram_check_authorization():
     auth_data = request.args.to_dict()
     try:
         check_hash = auth_data.get('hash')
+
         if not check_hash:
             return "Missing hash", 400
+
         data = {k: v for k, v in auth_data.items() if k != 'hash'}
         data_check_arr = [f"{k}={v}" for k, v in data.items()]
         data_check_arr.sort()
         data_check_string = "\n".join(data_check_arr)
         secret_key = hashlib.sha256(TELEGRAM_BOT_TOKEN.encode("utf-8")).digest()
         computed_hash = hmac.new(secret_key, data_check_string.encode("utf-8"), hashlib.sha256).hexdigest()
+
         if computed_hash != check_hash:
             return "Data is NOT from Telegram", 403
+
         auth_date = int(data.get('auth_date', 0))
+
         if (time.time() - auth_date) > 86400:
             return "Data is outdated", 403
+
         auth_data_json = json.dumps(auth_data)
         response = redirect('/telegram/me')
         response.set_cookie('tg_user', urllib.parse.quote(auth_data_json))
@@ -109,18 +117,78 @@ def telegram_check_authorization():
 
 
 @app.route('/telegram/me', methods=['GET'])
-def telegram_login_example():
+def telegram_me():
     tg_user_json = request.cookies.get('tg_user')
     if tg_user_json:
         tg_user = json.loads(urllib.parse.unquote(tg_user_json))
         session["telegram_user_hash"] = tg_user["hash"]
         session["telegram_user_id"] = tg_user["id"]
+        session["telegram_user_name"] = tg_user["username"]
         session.modified = True
         return jsonify(tg_user)
     else:
         html = f"""<h1>Hello, anonymous!</h1>
 <script async src="https://telegram.org/js/telegram-widget.js?22" data-telegram-login="${TELEGRAM_BOT_NAME}" data-size="large" data-auth-url="https://5e18-2601-647-4d82-9ec0-d9eb-b4df-6af4-6611.ngrok-free.app/telegram/check_authorization"></script>"""
         return html
+
+
+@app.route("/telegram/channels", methods=["GET"])
+def get_telegram_channels():
+    user_hash = session.get("telegram_user_hash")
+    username = session.get("telegram_user_name")
+    if not user_hash or not username:
+        return jsonify({"error": "User has not authorized with Telegram"}), 401
+
+    try:
+        result = loop.run_until_complete(fetch_channels(user_hash, username))
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+def format_for_spotify(query_str):
+    return (query_str.replace("&", ",")
+            .replace("feat.", ",")
+            .replace("feat", ",")
+            .replace("...", "")
+            .replace("..", "")
+            .replace("•", "")
+            .replace("/","")
+            .replace(".", " ."))
+
+
+async def fetch_channels(phone_code_hash, session_name):
+    client = TelegramClient(session_name, TELEGRAM_API_ID, TELEGRAM_API_HASH)
+    await client.start()
+
+    songs = []
+    broken_songs = []
+
+    async for message in client.iter_messages("@test_praytic_music"):
+        media = message.media
+        if media and hasattr(media, 'document'):
+            attributes = media.document.attributes[0]
+            try:
+                if hasattr(attributes, 'performer') and attributes.performer:
+                    # If there's a separate 'title'
+                    title = attributes.title or ""
+                    search_str = title + ' ' + attributes.performer
+                    search_str = format_for_spotify(search_str)
+                    if not search_str.strip():
+                        # fallback to the message text if we can't parse
+                        search_str = message.message.split("\n")[-1]
+
+                    songs.append(search_str)
+                else:
+                    # fallback or ignoring if no performer
+                    pass
+            except Exception as ex:
+                broken_str = f"{attributes.performer} {attributes.title}" if attributes else "unknown"
+                broken_songs.append(broken_str)
+
+    client.disconnect()
+
+    return songs
 
 
 @app.route('/telegram/songs', methods=['POST'])

@@ -31,14 +31,14 @@ def save_file(songs, filename):
     with open(filename + ".json", "w", encoding="utf-8") as file:
         json.dump(songs, file, ensure_ascii=False, separators=(",\n", ": "))
 
-def get_songs_from_telegram(client: TelegramClient, chat):
+async def get_songs_from_telegram(client: TelegramClient, chat):
     """
     Uses an *authenticated* Telethon client to iterate messages and build a list of songs.
     """
     songs = []
     broken_songs = []
 
-    for message in client.iter_messages(chat):
+    async for message in client.iter_messages(chat):
         media = message.media
         if media and hasattr(media, 'document'):
             attributes = media.document.attributes[0]

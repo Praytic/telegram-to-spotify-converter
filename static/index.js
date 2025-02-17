@@ -234,7 +234,7 @@ async function addSongsToSpotify(playlistName, songs) {
 async function renderStep2() {
     // Get channels from backend
     try {
-        const res = await fetch(`${SERVER_URL}/channels`);
+        const res = await fetch(`${SERVER_URL}/telegram/channels`);
         const data = await res.json();
         availableChannels = data.channels || [];
     } catch (err) {
